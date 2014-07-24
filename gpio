@@ -13,6 +13,7 @@
 #       unex   - unexport pin(s)
 #       in|out - set direction
 #       0|1    - set value
+#       info   - get kernel info about gpios
 #
 #    N1 is starting GPIO #
 #    N2 is ending GPIO # (N1 and N2 are inclusive)
@@ -20,27 +21,32 @@
 #    if N1 is omitted then all currently exported GPIOs are used
 #    if no arguments are supplied then OP is taken as ls
 
-# TODO: Make this work from a directory other than /sys/class/gpio
+# Note:
+#   Attempting to set a value to an input pin results in a write error.
+
 gpdir="/sys/class/gpio"
 
 if [ -$2 != - -a -$3 != - ] ; then
-   list=`seq $2 $3`
+   for n in `seq $2 $3` ; do
+       list+="$gpdir/gpio$n "
+   done
 elif [ -$2 != - ] ; then
-   list=gpio$2
+   list=$gpdir/gpio$2
 else
-   list=gpio*
+   list=$gpdir/gpio*
+fi
+
+if [[ -$1 == -inf* ]] ; then
+    cat /sys/kernel/debug/gpio
+    exit
 fi
 
 #echo Using list: $list
 
 for file in $list ; do
 
-    if [[ $file == gpiochip* ]] ; then
+    if [[ $file == *gpiochip* ]] ; then
        continue
-    fi
-
-    if [[ $file != gpio* ]] ; then
-       file=gpio$file
     fi
 
     if [[ -$1 != -ex* ]] ; then
@@ -49,6 +55,8 @@ for file in $list ; do
           continue
        fi
     fi
+
+    num=${file##*gpio}
 
     case "-$1" in
        -|-ls)
@@ -61,14 +69,12 @@ for file in $list ; do
           echo $1 > $file/value
           ;;
        -ex*)
-          num=${file#gpio}
           echo "Exporting $num"
-          echo $num > export
+          echo $num > $gpdir/export
           ;;
        -unex*)
-          num=${file#gpio}
 	  echo "Unexporting $num"
-          echo $num > unexport
+          echo $num > $gpdir/unexport
           ;;
        *)
           echo "Unrecognized operation $1"
