@@ -220,6 +220,7 @@ enum e_para_gpiores {
   para_badreturn = 9,
   para_badarg = 10,
   para_timeout = 11,
+  para_notfound = 12,
 };
 
 #define MAXPINSPEROBJECT  64

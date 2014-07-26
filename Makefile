@@ -16,7 +16,7 @@ BINDIR  = "${PREFIX}/bin"
 
 all: xtemp pmorse
 
-everything: xtemp pmorse gpiotest porcutest spitest facetest
+everything: xtemp pmorse gpiotest porcutest spitest facetest xadctest
 
 xtemp: xtemp.c
 	$(CC) -o xtemp xtemp.c $(CFLAGS) $(CLIBX) $(CPTHRD)
@@ -36,8 +36,11 @@ spitest: spitest.cpp para_spi.cpp para_spi.h para_gpio.c para_gpio.cpp para_gpio
 facetest: facetest.cpp para_face.cpp para_face.h para_spi.cpp para_spi.h para_gpio.c para_gpio.cpp para_gpio.h
 	$(CC) -o facetest facetest.cpp para_face.cpp para_spi.cpp para_gpio.cpp para_gpio.c $(CLIBPP) $(CFLAGS)
 
+xadctest: xadctest.c para_xadc.c para_xadc.h
+	$(CC) -o xadctest xadctest.c para_xadc.c $(CFLAGS) $(CLIBRT)
+
 clean:
-	rm -f xtemp pmorse gpiotest porcutest spitest facetest
+	rm -f xtemp pmorse gpiotest porcutest spitest facetest xadctest
 
 install: install-exec
 
