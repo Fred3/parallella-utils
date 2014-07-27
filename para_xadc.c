@@ -36,6 +36,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   Parallella library to read temperature & other XADC info from Zynq.
   See header file for info & function entries.
 
+  Note: It seems the file object must be closed & re-opened to get
+  a new value.  Simply trying to read a second time does not return
+  a value at all, and doing a rewind first just gives the same value
+  (but much faster!).  The GPIO driver works with rewinding, it would
+  be nice if this did too.
+
 */
 
 #include <stdio.h>
@@ -54,6 +60,7 @@ int      nChannels = -1;
 int      nOffsets[PARAX_MAXCHANS];
 float    fScales[PARAX_MAXCHANS];
 char     *pstrNames[PARAX_MAXCHANS];
+//FILE     *pFiles[PARAX_MAXCHANS];
 
 static int para_initxadc() {
   glob_t  stGlob;
@@ -67,7 +74,7 @@ static int para_initxadc() {
   memset(pstrNames, 0, sizeof(pstrNames));
 
   strcpy(strName, strBase);
-  strcat(strName, "*");
+  strcat(strName, "*_raw");
 
   rc = glob(strName, 0, NULL, &stGlob);
   if(rc == GLOB_NOMATCH) {
@@ -82,36 +89,33 @@ static int para_initxadc() {
 
   for(n=0; n<stGlob.gl_pathc; n++) {
 
-    if(!strcmp("_raw", stGlob.gl_pathv[n] + strlen(stGlob.gl_pathv[n]) - 4)) {
-
-      if(nChannels == PARAX_MAXCHANS) {
-	fprintf(stderr, "WARNING: Max. number of channels exceeded!\n");
-	break;
-      }
-
-      strTemp = rindex(stGlob.gl_pathv[n], '/');
-      if(strTemp == NULL  || (l = strlen(strTemp)) < 5) {
-	fprintf(stderr, "ERROR: Internal error in para_initxadc() [%p: %s]\n",
-		strTemp, stGlob.gl_pathv[n]);
-	globfree(&stGlob);
-	nChannels = 0;
-	return parax_fileerr;
-      }
-
-      strTemp += 4;  // /in_xxx_raw, cut off "/in_"
-
-      pstrNames[nChannels] = malloc(l);  // will never be free'd ?
-      if(pstrNames[nChannels] == NULL) {
-	fprintf(stderr, "ERROR: Out of memory\n");
-	globfree(&stGlob);
-	return parax_outofmemory;
-      }
-
-      strcpy(pstrNames[nChannels], strTemp);
-      pstrNames[nChannels][l - 8] = 0;  // cut off "_raw"
-
-      nChannels++;
+    if(nChannels == PARAX_MAXCHANS) {
+      fprintf(stderr, "WARNING: Max. number of channels exceeded!\n");
+      break;
     }
+
+    strTemp = rindex(stGlob.gl_pathv[n], '/');
+    if(strTemp == NULL  || (l = strlen(strTemp)) < 5) {
+      fprintf(stderr, "ERROR: Internal error in para_initxadc() [%p: %s]\n",
+	      strTemp, stGlob.gl_pathv[n]);
+      globfree(&stGlob);
+      nChannels = 0;
+      return parax_fileerr;
+    }
+
+    strTemp += 4;  // /in_xxx_raw, cut off "/in_"
+
+    pstrNames[nChannels] = malloc(l);  // will never be free'd ?
+    if(pstrNames[nChannels] == NULL) {
+      fprintf(stderr, "ERROR: Out of memory\n");
+      globfree(&stGlob);
+      return parax_outofmemory;
+    }
+
+    strcpy(pstrNames[nChannels], strTemp);
+    pstrNames[nChannels][l - 8] = 0;  // cut off "_raw"
+
+    nChannels++;
   }
 
   globfree(&stGlob);
@@ -141,7 +145,7 @@ static int para_initxadc() {
     if((sysfile = fopen(strName, "ra")) == NULL) {
       fprintf(stderr, "ERROR: Can't open scale file for %s\n",
 	      pstrNames[n]);
-      return parax_fileerr;
+      return parax_fileerr;  // TODO: Should handle errors better
     }
 
     fgets(strRead, PARAX_MAXSTRLEN-1, sysfile);
@@ -152,7 +156,7 @@ static int para_initxadc() {
 
   }
 
-  return 0;
+  return parax_ok;
 }
 
 int   para_infoxadc(int *pnChannels, const char ***pppStrNames) {
@@ -194,7 +198,7 @@ int   para_getidxadc(const char *pStrNamePat, int *pnIdNum) {
 }
 
 int   para_getxadc(int nId, float *pfValue) {
-  FILE *sysfile;
+  FILE  *sysfile;
   char  strRead[PARAX_MAXSTRLEN], strName[PARAX_MAXSTRLEN];
   int   rc = parax_ok, nRaw;
 

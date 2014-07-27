@@ -18,8 +18,8 @@ all: xtemp pmorse
 
 everything: xtemp pmorse gpiotest porcutest spitest facetest xadctest
 
-xtemp: xtemp.c
-	$(CC) -o xtemp xtemp.c $(CFLAGS) $(CLIBX) $(CPTHRD)
+xtemp: xtemp.c para_xadc.c para_xadc.h
+	$(CC) -o xtemp xtemp.c para_xadc.c $(CFLAGS) $(CLIBX) $(CPTHRD)
 
 pmorse: pmorse.c $(GPIODEPS)
 	$(CC) -o pmorse pmorse.c $(GPIOSRCS) $(CFLAGS)

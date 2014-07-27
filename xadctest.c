@@ -49,6 +49,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <time.h>
 #include "para_xadc.h"
 
+#ifndef countof
+  #define countof(x)  (sizeof(x)/sizeof(x[0]))
+#endif
+
 void Usage() {
 
   printf("\nUsage:  xadctest -h  (show this help)\n");
@@ -59,9 +63,9 @@ void Usage() {
 }
 
 int main(int argc, char *argv[]) {
-  int	n, i, c, rc;
+  int	n, i, c, rc, nDeltas;
   struct timespec  tsStart, tsEnd;
-  float  fVal;
+  float  fVal, fArray[100], fLast;
   double  dTimeElapsed;
   const char **aNameList;
 
@@ -117,8 +121,26 @@ int main(int argc, char *argv[]) {
   else
     printf("\nLook-up 'BRAM': ID=%d\n", n);
 
+  c = 1;
+  n = countof(fArray);
+  printf("\nReading channel %d %d times...\n", c, n);
+
+  for(i=0; i<n; i++) {
+    if((rc = para_getxadc(c, fArray+i)) != parax_ok) {
+      printf("ERROR %d from para_getxadc()\n", rc);
+      break;
+    }
+  }
+
+  for(i=0; i<n; i++)
+    printf("%8.4f", fArray[i]);
+
+  printf("\n\n");
+
   c = 3;
   n = 20000;
+  nDeltas = 0;
+  fLast = 0.0;
   printf("\nReading channel %d %d times...\n", c, n);
 
   clock_gettime(CLOCK_REALTIME, &tsStart);
@@ -127,6 +149,11 @@ int main(int argc, char *argv[]) {
       printf("ERROR %d from para_getxadc()\n", rc);
       break;
     }
+
+    if(fVal != fLast) {
+      nDeltas++;
+      fLast = fVal;
+    }
   }
   clock_gettime(CLOCK_REALTIME, &tsEnd);
 
@@ -134,6 +161,7 @@ int main(int argc, char *argv[]) {
     dTimeElapsed = (double)(tsEnd.tv_sec - tsStart.tv_sec);
     dTimeElapsed += (double)(tsEnd.tv_nsec - tsStart.tv_nsec) / 1.0e9;
     printf("Took %.3lf seconds, %.0lf updates/sec\n", dTimeElapsed, n / dTimeElapsed);
+    printf("Found %d unique values\n", nDeltas);
   }
 
   return 0;

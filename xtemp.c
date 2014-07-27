@@ -65,9 +65,9 @@ or
 #include <signal.h>
 #include <unistd.h>
 #include <math.h>
+#include "para_xadc.h"
 
 #define kSTRMAX    256
-#define kXADCPATH  "/sys/bus/iio/devices/iio:device0/"
 #define kMAXSAMPLES 2048
 
 Display  *dpy;
@@ -76,13 +76,12 @@ GC       gc;
 unsigned long clrBlack, clrWhite, clrRed, clrBlue, clrOrange;
 Atom      wmDeleteMessage;
 
-int      nOffset = 0;
-float    fScale = 0.0;
-
 float    fTempWarn = 70., fTempLimit = 80.;
 float    fTemps[kMAXSAMPLES], fMaxTemp=-999., fMinTemp=999.;
 int      nLastSample=-1, nSamples=0;
 int      nSleepSecs = 2;
+
+int      nAdcId = -1;
 
 void Usage() {
 
@@ -167,50 +166,6 @@ int InitX() {
   return 0;
 }
 
-int GetConstants() {
-  char  strRead[kSTRMAX];
-  FILE *sysfile;
-
-  if((sysfile = fopen(kXADCPATH "in_temp0_offset", "ra")) == NULL) {
-    fprintf(stderr, "ERROR: Can't open offset device file\n");
-    return 1;
-  }
-  fgets(strRead, kSTRMAX-1, sysfile);
-  fclose(sysfile);
-  nOffset = atoi(strRead);
-
-  if((sysfile = fopen(kXADCPATH "in_temp0_scale", "ra")) == NULL) {
-    fprintf(stderr, "ERROR: Can't open scale device file\n");
-    return 2;
-  }
-  fgets(strRead, kSTRMAX-1, sysfile);
-  fclose(sysfile);
-  fScale = atof(strRead);
-
-  return 0;
-}
-
-int GetTemp(float *fTemp) {
-  FILE *sysfile;
-  char  strRead[kSTRMAX];
-  int  nRaw;
-
-  if(nOffset == 0 || fScale == 0.0)
-    return 1;
-
-  if((sysfile = fopen(kXADCPATH "in_temp0_raw", "ra")) == NULL) {
-    return 2;
-  }
-
-  fgets(strRead, kSTRMAX-1, sysfile);
-  fclose(sysfile);
-  nRaw = atoi(strRead);
-
-  *fTemp = (nRaw + nOffset) * fScale / 1000.;
-
-  return 0;
-}
-
 void *UpdateThread(void *idThread) {
   int   nSample;
   XClientMessageEvent  evt;
@@ -219,7 +174,7 @@ void *UpdateThread(void *idThread) {
 
     nSample = (nLastSample + 1)  % kMAXSAMPLES;
 
-    if(GetTemp(fTemps + nSample))
+    if(para_getxadc(nAdcId, fTemps + nSample))
       continue;
 
     if(fTemps[nSample] < fMinTemp)
@@ -376,15 +331,18 @@ int main(int argc, char **argv) {
 
   if(InitX()) {
     return 1;
-  } if(GetConstants()) {
-    return 2;
-  } if(pthread_create(&tidUpdate, NULL, &UpdateThread, NULL)) {
+  }
+  if(pthread_create(&tidUpdate, NULL, &UpdateThread, NULL)) {
     fprintf(stderr, "ERROR: Can't create update thread.\n");
+    return 2;
+  }
+  if(nAdcId < 0 && para_getidxadc("temp", &nAdcId) != parax_ok) {
+    fprintf(stderr, "ERROR: Unable to get XADC ID\n");
     return 3;
   }
 
   float fTemp;
-  GetTemp(&fTemp);
+  para_getxadc(nAdcId, &fTemp);
   printf("Current Temp = %.1f\n", fTemp);
 
   while(1) {

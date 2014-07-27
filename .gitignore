@@ -3,3 +3,12 @@
 *~
 *#
 
+####
+# Built files
+facetest
+gpiotest
+pmorse
+porcutest
+spitest
+xadctest
+xtemp
