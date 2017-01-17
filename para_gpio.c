@@ -42,6 +42,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
+#include <poll.h>
 
 // Use the filesystem interface to control the GPIOs
 // Based on: http://www.wiki.xilinx.com/GPIO+User+Space+App
@@ -79,6 +80,7 @@ int  para_initgpio_ex(para_gpio **ppGpio, int nID, bool bMayExist) {
   (*ppGpio)->eDir = para_dirunk;
   (*ppGpio)->fdVal = -1;
   (*ppGpio)->fdDir = -1;
+  (*ppGpio)->fdEdge = -1;
   (*ppGpio)->bIsNew = false;
 
   sprintf(str1, GPIOBASE "gpio%d/direction", nID);
@@ -124,6 +126,14 @@ int  para_initgpio_ex(para_gpio **ppGpio, int nID, bool bMayExist) {
   }
   (*ppGpio)->fdVal = fd;
 
+  sprintf(str1, GPIOBASE "gpio%d/edge", nID);
+  if((fd = open(str1, O_RDWR)) < 0) {
+    fprintf(stderr, "Can't open the edge file %s\n", str1);
+    rc = para_fileerr;
+    goto initfail;
+  }
+  (*ppGpio)->fdEdge = fd;
+
   return rc;
 
  initfail:
@@ -154,6 +164,11 @@ void para_closegpio_ex(para_gpio *pGpio, bool bForceUnexport) {
     close(pGpio->fdDir);
     pGpio->fdDir = -1;
   }
+
+  if(pGpio->fdEdge >= 0) {
+    close(pGpio->fdEdge);
+    pGpio->fdEdge = -1;
+  }
   
   if(pGpio->nID >= 0 && (pGpio->bIsNew || bForceUnexport)) {
     if((fd = open(GPIOBASE "unexport", O_WRONLY)) >= 0) {
@@ -171,6 +186,9 @@ static const char str0[] = "0\n";
 static const char str1[] = "1\n";
 static const char strIn[] = "in\n";
 static const char strOut[] = "out\n";
+static const char strRise[] = "rising\n";
+static const char strFall[] = "falling\n";
+static const char strBoth[] = "both\n";
 
 int para_setgpio(para_gpio *pGpio, int nValue) {
   const char *str;
@@ -300,6 +318,66 @@ int para_blinkgpio(para_gpio *pGpio, int nMSOn, int nMSOff) {
   usleep(nMSOff*1000);
 
   return 0;
+}
+
+int para_waitlevel(para_gpio *pGpio, int nValue, int nTimeout) {
+  int res, n;
+
+  res = para_getgpio(pGpio, &n);
+  if(res) return res;
+
+  if(n == nValue)
+    return para_ok;
+
+  // NOTE: Seems like there is a vulnerability here than an edge
+  //   could be missed.  How to deal with that?
+  return para_waitedge(pGpio, nValue ? para_edgerise : para_edgefall,
+		       nTimeout);
+}
+
+int para_waitedge(para_gpio *pGpio, int nEdge, int nTimeout) {
+  const char *pEdge;
+  int  res;
+  struct pollfd pfds;
+
+  if(pGpio == NULL)
+    return para_badgpio;
+
+  if(pGpio->fdVal < 0 || pGpio->fdEdge < 0)
+    return para_notopen;
+
+  switch(nEdge) {
+  case para_edgerise:
+    pEdge = strRise;
+    break;
+  case para_edgefall:
+    pEdge = strFall;
+    break;
+  case para_edgeboth:
+    pEdge = strBoth;
+    break;
+  default:
+    return para_badarg;
+  }
+
+  res = write(pGpio->fdEdge, pEdge, strlen(pEdge));
+  if(res == 0)
+    return para_fileerr;
+
+  pfds.fd = pGpio->fdVal;
+  pfds.events = POLLPRI | POLLERR;
+  pfds.revents = 0;
+
+  res = poll(&pfds, 1, nTimeout * 1000);
+  
+  if(res == 0)
+    return para_timeout;
+  if(res < 0)
+    return para_fileerr;
+
+  lseek(pGpio->fdVal, 0, SEEK_SET);
+
+  return para_ok;
 }
 
 // Legacy GPIO access, following:

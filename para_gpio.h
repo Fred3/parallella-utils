@@ -101,6 +101,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
       the gpio pin, turning it on for nMSOn milliseconds and then
       off for nMSOff before returning.
 
+    para_waitlevel((para_gpio *pGpio, int nValue, int nTimeout) - 
+      Waits for the given value to be present on the input, meaning
+      it will return immediately if the input is already at the
+      requested value.  Times out after nTimeout seconds if request
+      not satisfied, with return value 'para_timeout'.
+
+    para_waitedge(int nPin, int nValue, int nTimeout) - Waits for a
+      rising (nValue = 1), falling (nValue = 0), or either (nValue 
+      = 3) edge on the input.  Requires an edge, i.e. if the input
+      is already at the requested level it must toggle before this
+      function will return.  Times out after nTimeout seconds if no
+      edge, with return value 'para_timeout'.
+
   Parallella GPIO Class, member functions:
     Except for the constructors, all functions return 0 (success) or an
       error code.
@@ -157,8 +170,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
       if the input is already at the requested value.  Times out after
       nTimeout seconds if request not satisfied.
 
-    WaitEdge(int nPin, int nValue, int nTimeout) - Waits for a rising 
-      (nValue = 1) or falling (nValue = 0) edge on the input.  Requires
+    WaitEdge(int nPin, int nEdge, int nTimeout) - Waits for an edge on
+      the input.  Edge defined as enum gpio_edge_fall/rise/both.  Requires
       an edge, i.e. if the input is already at the requested level it
       must toggle before this function will return.  Times out after
       nTimeout seconds if no edge.
@@ -197,11 +210,20 @@ typedef enum e_para_gpiodir {
   para_dirwor
 } para_gpiodir;
 
+typedef enum e_para_gpioedge {
+  para_edgeunk,
+  para_edgenone,
+  para_edgerise,
+  para_edgefall,
+  para_edgeboth
+} para_gpioedge;
+
 // GPIO structure for the C functions
 typedef struct st_para_gpio {
   int nID;
   int fdVal;
   int fdDir;
+  int fdEdge;
   bool bIsNew;
   para_gpiodir eDir;
 } para_gpio;
@@ -240,7 +262,9 @@ extern "C" {
   int         para_dirgpio(para_gpio *pGpio, para_gpiodir eDir);
   int         para_getgpio(para_gpio *pGpio, int *pValue);
   int         para_blinkgpio(para_gpio *pGpio, int nMSOn, int nMSOff);
-  
+  int         para_waitlevel(para_gpio *pGpio, int nValue, int nTimeout);
+  int         para_waitedge(para_gpio *pGpio, int nEdge, int nTimeout);
+
 #ifdef __cplusplus
 }  // extern "C"
 
@@ -264,7 +288,7 @@ class CParaGpio {
   int GetValue(unsigned long long *pValue);
   int GetValue(unsigned *pValue);
   int WaitLevel(int nPin, int nValue, int nTimeout);
-  int WaitEdge(int nPin, int nValue, int nTimeout);
+  int WaitEdge(int nPin, int nEdge, int nTimeout);
   int Blink(unsigned long long nMask, int nMSOn, int nMSOff);
   void Close();
 };
