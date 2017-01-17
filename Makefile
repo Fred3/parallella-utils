@@ -16,7 +16,7 @@ BINDIR  = "${PREFIX}/bin"
 
 all: xtemp pmorse
 
-everything: xtemp pmorse gpiotest porcutest spitest facetest xadctest
+everything: xtemp pmorse gpiotest gpiotest_irq porcutest spitest facetest xadctest
 
 xtemp: xtemp.c para_xadc.c para_xadc.h
 	$(CC) -o xtemp xtemp.c para_xadc.c $(CFLAGS) $(CLIBX) $(CPTHRD)
@@ -26,6 +26,9 @@ pmorse: pmorse.c $(GPIODEPS)
 
 gpiotest: gpiotest.c $(GPIODEPS)
 	$(CC) -o gpiotest gpiotest.c $(GPIOSRCS) $(CFLAGS) $(CLIBRT)
+
+gpiotest_irq: gpiotest_irq.c $(GPIODEPS)
+	$(CC) -o gpiotest_irq gpiotest_irq.c $(GPIOSRCS) $(CFLAGS) $(CLIBRT)
 
 porcutest: porcutest.cpp para_gpio.c para_gpio.cpp
 	$(CC) -o porcutest porcutest.cpp para_gpio.c para_gpio.cpp $(CLIBPP) $(CFLAGS)

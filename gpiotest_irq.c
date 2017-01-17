@@ -103,8 +103,8 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "para_initgpio() failed with code %d, exiting\n", rc);
     exit(1);
   }
-  printf("Success, pausing 5 seconds\n");
-  sleep(5);
+  printf("  Success\n");
+  sleep(1);
 
   printf("Setting direction to 'input'.\n");
   if((rc = para_dirgpio(pGpio, para_dirin)) != para_ok) {
@@ -112,8 +112,8 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  printf("Pausing 5 seconds\n");
-  sleep(5);
+  printf("  Success\n");
+  sleep(1);
 
   if((rc = para_getgpio(pGpio, &n)) != para_ok) {
     printf("ERROR %d from para_getgpio()\n", rc);
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
   }
 
   printf("Closing\n");
-  para_closegpio_ex(pGpio, true);  // always un-export the pin
+  para_closegpio_ex(pGpio, false);  // only un-export if we exported
 
   return 0;
 }

@@ -49,6 +49,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //  remember to fflush the fp to get the pin to update!
 
 #define GPIOBASE  "/sys/class/gpio/"
+#define MAXBUF    256
 
 int  para_initgpio(para_gpio **ppGpio, int nID) {
 
@@ -57,7 +58,7 @@ int  para_initgpio(para_gpio **ppGpio, int nID) {
 
 int  para_initgpio_ex(para_gpio **ppGpio, int nID, bool bMayExist) {
   int  fd;
-  char str1[256], str2[256];
+  char str1[MAXBUF], str2[MAXBUF];
   int  rc = para_ok;
 
   if(ppGpio == NULL)
@@ -119,7 +120,7 @@ int  para_initgpio_ex(para_gpio **ppGpio, int nID, bool bMayExist) {
   (*ppGpio)->fdDir = fd;
 
   sprintf(str1, GPIOBASE "gpio%d/value", nID);
-  if((fd = open(str1, O_RDWR)) < 0) {  // Read & Write on same fd
+  if((fd = open(str1, O_RDWR | O_NONBLOCK)) < 0) {  // Read & Write on same fd
     fprintf(stderr, "Can't open the value file %s\n", str1);
     rc = para_fileerr;
     goto initfail;
@@ -149,7 +150,7 @@ void para_closegpio(para_gpio *pGpio) {
 }
 
 void para_closegpio_ex(para_gpio *pGpio, bool bForceUnexport) {
-  char  str[256];
+  char  str[MAXBUF];
   int   fd;
 
   if(pGpio == NULL)
@@ -337,6 +338,7 @@ int para_waitlevel(para_gpio *pGpio, int nValue, int nTimeout) {
 
 int para_waitedge(para_gpio *pGpio, int nEdge, int nTimeout) {
   const char *pEdge;
+  char buf[MAXBUF];
   int  res;
   struct pollfd pfds;
 
@@ -360,12 +362,12 @@ int para_waitedge(para_gpio *pGpio, int nEdge, int nTimeout) {
     return para_badarg;
   }
 
-  res = write(pGpio->fdEdge, pEdge, strlen(pEdge));
+  res = write(pGpio->fdEdge, pEdge, strlen(pEdge)+1);
   if(res == 0)
     return para_fileerr;
 
   pfds.fd = pGpio->fdVal;
-  pfds.events = POLLPRI | POLLERR;
+  pfds.events = POLLPRI;
   pfds.revents = 0;
 
   res = poll(&pfds, 1, nTimeout * 1000);
@@ -375,7 +377,10 @@ int para_waitedge(para_gpio *pGpio, int nEdge, int nTimeout) {
   if(res < 0)
     return para_fileerr;
 
+  // NOTE: revents seems to always include POLLERR ?
+
   lseek(pGpio->fdVal, 0, SEEK_SET);
+  read(pGpio->fdVal, buf, MAXBUF);
 
   return para_ok;
 }
